@@ -18,9 +18,7 @@ export function ResumeUploader() {
     mutationFn: (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      return apiClient.post('/resumes/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      return apiClient.post('/resumes/upload', formData);
     },
     onMutate: () => setState('uploading'),
     onSuccess: () => {

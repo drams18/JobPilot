@@ -24,6 +24,9 @@ yarn-error.log*
 # Local uploads (user files)
 public/uploads/
 
+# Playwright automation sessions (contain auth cookies — never commit)
+apps/automation/sessions/
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts

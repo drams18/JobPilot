@@ -25,6 +25,7 @@ enum PreferredTone {
 
 enum ApplicationStatus {
   DRAFT
+  AUTOMATING
   APPLIED
   IN_REVIEW
   INTERVIEW_SCHEDULED
@@ -109,23 +110,28 @@ model UserPreferences {
 }
 
 model JobOffer {
-  id           String   @id @default(cuid())
-  title        String
-  company      String
-  location     String?
-  description  String   @db.LongText
-  requirements String?  @db.LongText
-  salaryRange  String?  @map("salary_range")
-  jobUrl       String   @unique @map("job_url")
-  source       String
-  scrapedAt    DateTime @default(now()) @map("scraped_at")
-  isActive     Boolean  @default(true) @map("is_active")
+  id            String   @id @default(cuid())
+  externalKey   String?  @unique @map("external_key")
+  title         String
+  company       String
+  location      String?
+  description   String   @db.LongText
+  requirements  String?  @db.LongText
+  salaryRange   String?  @map("salary_range")
+  contractType  String?  @map("contract_type")
+  experience    String?
+  qualification String?
+  jobUrl        String   @map("job_url")
+  source        String
+  scrapedAt     DateTime @default(now()) @map("scraped_at")
+  isActive      Boolean  @default(true) @map("is_active")
 
   matchScores  JobMatchScore[]
   applications Application[]
 
   @@index([isActive])
   @@index([source])
+  @@index([jobUrl])
   @@fulltext([title, company, description])
   @@map("job_offers")
 }
@@ -162,8 +168,9 @@ model Application {
   jobOffer JobOffer @relation(fields: [jobOfferId], references: [id])
   resume   Resume   @relation(fields: [resumeId], references: [id])
 
-  documents GeneratedDocument[]
-  events    ApplicationEvent[]
+  documents       GeneratedDocument[]
+  events          ApplicationEvent[]
+  automationLogs  AutomationLog[]
 
   @@index([userId, status])
   @@index([jobOfferId])
@@ -197,4 +204,17 @@ model ApplicationEvent {
 
   @@index([applicationId, createdAt])
   @@map("application_events")
+}
+
+model AutomationLog {
+  id            String   @id @default(cuid())
+  applicationId String   @map("application_id")
+  event         String
+  payload       Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+  @@map("automation_logs")
 }

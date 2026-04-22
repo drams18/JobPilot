@@ -93,29 +93,70 @@ export async function POST(request: NextRequest) {
   });
 }
 
-function computeMatch(job: { title: string; description: string; requirements?: string | null; location?: string | null }, resume: { rawText?: string | null; parsedJson?: unknown }) {
-  const jobText = `${job.title} ${job.description} ${job.requirements ?? ''}`.toLowerCase();
+function computeMatch(
+  job: { title: string; description: string; requirements?: string | null; location?: string | null },
+  resume: { rawText?: string | null; parsedJson?: unknown },
+) {
+  const titleLow = job.title.toLowerCase();
+  const descLow = job.description.toLowerCase();
+  const reqLow = (job.requirements ?? '').toLowerCase();
   const resumeText = `${resume.rawText ?? ''} ${JSON.stringify(resume.parsedJson ?? '')}`.toLowerCase();
 
-  const jobSkills = SKILLS.filter((s) => jobText.includes(s.toLowerCase()));
-  const matchedSkills = jobSkills.filter((s) => resumeText.includes(s.toLowerCase()));
-  const missingSkills = jobSkills.filter((s) => !resumeText.includes(s.toLowerCase()));
+  // CV skills from parsed JSON, fallback to global SKILLS list
+  const parsedSkills: string[] = (resume.parsedJson as { skills?: string[] })?.skills ?? [];
+  const cvSkills = parsedSkills.length > 0 ? parsedSkills : SKILLS.filter((s) => resumeText.includes(s.toLowerCase()));
 
-  const skillScore = jobSkills.length > 0 ? (matchedSkills.length / jobSkills.length) * 80 : 40;
+  // Weighted scoring per skill
+  let rawScore = 0;
+  const matchedSkills: string[] = [];
+  const missingSkills: string[] = [];
 
+  for (const skill of cvSkills) {
+    const s = skill.toLowerCase();
+    let skillScore = 0;
+    if (titleLow.includes(s)) skillScore += 3;
+    if (reqLow.includes(s)) skillScore += 2;
+    if (descLow.includes(s)) skillScore += 1;
+
+    if (skillScore > 0) {
+      matchedSkills.push(skill);
+      rawScore += skillScore;
+    }
+  }
+
+  // Skills from global list that appear in job but not in CV
+  const jobSkillsFromList = SKILLS.filter((s) => {
+    const sl = s.toLowerCase();
+    return titleLow.includes(sl) || descLow.includes(sl) || reqLow.includes(sl);
+  });
+  const missingFromList = jobSkillsFromList.filter(
+    (s) => !cvSkills.some((cs) => cs.toLowerCase() === s.toLowerCase()),
+  );
+  missingSkills.push(...missingFromList.slice(0, 6));
+
+  // Location bonus (+5)
+  const locationCity = (job.location ?? '').split('(')[0].trim().toLowerCase();
   const locationMatch =
     !job.location ||
-    resumeText.includes((job.location ?? '').toLowerCase()) ||
+    (locationCity.length > 2 && resumeText.includes(locationCity)) ||
     resumeText.includes('remote') ||
-    (job.location ?? '').toLowerCase().includes('remote');
+    /remote|télétravail|à distance/i.test(job.location ?? '');
 
-  const score = Math.min(100, Math.round(skillScore + (locationMatch ? 20 : 0)));
+  if (locationMatch) rawScore += 5;
+
+  // Remote bonus (+2)
+  const isRemote = /remote|télétravail|à distance/i.test(job.location ?? '') || /remote|télétravail/i.test(job.description);
+  if (isRemote && /remote|télétravail/i.test(resumeText)) rawScore += 2;
+
+  // Normalise: max = cvSkills.length * 6 + 7
+  const maxPossible = Math.max(cvSkills.length * 6 + 7, 1);
+  const score = Math.min(100, Math.round((rawScore / maxPossible) * 100));
   const priority = score >= 70 ? 'LOW' : score >= 45 ? 'MEDIUM' : 'HIGH';
 
   const items: string[] = [];
   if (missingSkills.length > 0)
     items.push(`Ajoutez ces compétences à votre CV : ${missingSkills.slice(0, 3).join(', ')}`);
-  if (!locationMatch)
+  if (!locationMatch && job.location)
     items.push(`Précisez votre disponibilité pour ${job.location}`);
   if (score < 70)
     items.push('Personnalisez votre CV pour mettre en avant les expériences pertinentes');
