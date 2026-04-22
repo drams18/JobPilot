@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
+import { getFolder } from '@/lib/application-state';
 
 export async function GET(
   request: NextRequest,
@@ -17,12 +18,17 @@ export async function GET(
       resume: true,
       documents: { orderBy: { createdAt: 'desc' } },
       events: { orderBy: { createdAt: 'asc' } },
+      automationLogs: { orderBy: { createdAt: 'asc' } },
     },
   });
 
   if (!app) return NextResponse.json({ message: 'Introuvable' }, { status: 404 });
 
-  return NextResponse.json(app);
+  // Fix 1: folder is always computed from status — never stored
+  return NextResponse.json({
+    ...app,
+    folder: getFolder(app.status),
+  });
 }
 
 export async function DELETE(

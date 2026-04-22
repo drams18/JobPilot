@@ -3,6 +3,25 @@ import { resolve } from 'path';
 import type { AutomateArgs, AutomationEvent } from './types';
 import { tryFillField, uploadCV, withRetry, FIELDS, sleep, randomDelay } from './selectors';
 
+// Ordered step sequence — must match STEP_SEQUENCE in application-state.ts
+const STEP_SEQUENCE = [
+  'starting_automation',
+  'navigating_to_url',
+  'page_loaded',
+  'name_filled',
+  'email_filled',
+  'phone_filled',
+  'cover_letter_inserted',
+  'upload_done',
+  'ready_for_review',
+  'submitting',
+  'submitted',
+];
+
+function getStepIndex(step: string): number {
+  return STEP_SEQUENCE.indexOf(step);
+}
+
 function parseArgs(): AutomateArgs {
   const args = process.argv.slice(2);
 
@@ -29,6 +48,7 @@ function parseArgs(): AutomateArgs {
     message: required('message'),
     sessionPath: get('session') ?? resolve(__dirname, '../sessions/default.json'),
     headless: get('headless') === 'true',
+    resumeFrom: get('resumeFrom'),
   };
 }
 
@@ -48,6 +68,12 @@ async function hasFile(path: string): Promise<boolean> {
 
 async function main() {
   const args = parseArgs();
+  const resumeIndex = args.resumeFrom ? getStepIndex(args.resumeFrom) : -1;
+
+  const shouldSkip = (step: string): boolean => {
+    const idx = getStepIndex(step);
+    return idx !== -1 && idx <= resumeIndex;
+  };
 
   const sessionExists = await hasFile(args.sessionPath);
 
@@ -67,39 +93,91 @@ async function main() {
   let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   try {
-    emit({ event: 'navigating', data: { url: args.url } });
+    // ── INIT ──────────────────────────────────────────────────────────────
+    if (shouldSkip('starting_automation')) {
+      emit({ event: 'starting_automation', data: { skipped: true } });
+    } else {
+      emit({ event: 'starting_automation' });
+    }
 
-    await page.goto(args.url, { waitUntil: 'networkidle', timeout: 30_000 });
-    emit({ event: 'page_loaded' });
+    if (shouldSkip('navigating_to_url')) {
+      emit({ event: 'navigating_to_url', data: { url: args.url, skipped: true } });
+    } else {
+      emit({ event: 'navigating_to_url', data: { url: args.url } });
+      await page.goto(args.url, { waitUntil: 'networkidle', timeout: 30_000 });
+    }
 
-    await randomDelay();
-
-    // Fill each field with retry + delay between each
-    const fields: Array<{ key: keyof typeof FIELDS; value: string | undefined }> = [
-      { key: 'name', value: args.name },
-      { key: 'email', value: args.email },
-      { key: 'phone', value: args.phone },
-      { key: 'message', value: args.message },
-    ];
-
-    for (const { key, value } of fields) {
-      if (!value) continue;
-      const success = await withRetry(
-        () => tryFillField(page, value, FIELDS[key]),
-        2,
-        1500,
-      );
-      emit({ event: 'field_filled', data: { field: key, success } });
+    if (shouldSkip('page_loaded')) {
+      emit({ event: 'page_loaded', data: { skipped: true } });
+    } else {
+      emit({ event: 'page_loaded' });
       await randomDelay();
     }
 
-    // Upload CV
-    const uploadSuccess = await withRetry(() => uploadCV(page, args.cvPath), 2, 2000);
-    emit({ event: 'upload_done', data: { success: uploadSuccess } });
+    // ── FIELDS ────────────────────────────────────────────────────────────
+    // Name
+    if (shouldSkip('name_filled')) {
+      emit({ event: 'filling_name', data: { skipped: true } });
+      emit({ event: 'name_filled', data: { success: true, skipped: true } });
+    } else if (args.name) {
+      emit({ event: 'filling_name' });
+      const success = await withRetry(() => tryFillField(page, args.name, FIELDS.name), 2, 1500);
+      emit({ event: 'name_filled', data: { success } });
+      await randomDelay();
+    }
 
-    await sleep(500 + Math.random() * 500);
+    // Email
+    if (shouldSkip('email_filled')) {
+      emit({ event: 'filling_email', data: { skipped: true } });
+      emit({ event: 'email_filled', data: { success: true, skipped: true } });
+    } else {
+      emit({ event: 'filling_email' });
+      const success = await withRetry(() => tryFillField(page, args.email, FIELDS.email), 2, 1500);
+      emit({ event: 'email_filled', data: { success } });
+      await randomDelay();
+    }
 
-    // Human review phase — user validates and submits
+    // Phone
+    if (shouldSkip('phone_filled')) {
+      emit({ event: 'filling_phone', data: { skipped: true } });
+      emit({ event: 'phone_filled', data: { success: true, skipped: true } });
+    } else if (args.phone) {
+      emit({ event: 'filling_phone' });
+      const success = await withRetry(() => tryFillField(page, args.phone!, FIELDS.phone), 2, 1500);
+      emit({ event: 'phone_filled', data: { success } });
+      await randomDelay();
+    }
+
+    // Cover letter / message
+    if (shouldSkip('cover_letter_inserted')) {
+      emit({ event: 'filling_message', data: { skipped: true } });
+      emit({ event: 'cover_letter_inserted', data: { success: true, skipped: true } });
+    } else if (args.message) {
+      emit({ event: 'filling_message' });
+      const success = await withRetry(
+        () => tryFillField(page, args.message, FIELDS.message),
+        2,
+        1500,
+      );
+      emit({ event: 'cover_letter_inserted', data: { success } });
+      await randomDelay();
+    }
+
+    // ── CV UPLOAD ─────────────────────────────────────────────────────────
+    if (shouldSkip('upload_done')) {
+      emit({ event: 'selecting_cv', data: { skipped: true } });
+      emit({ event: 'uploading_cv', data: { skipped: true } });
+      emit({ event: 'upload_done', data: { success: true, skipped: true } });
+    } else {
+      emit({ event: 'selecting_cv' });
+      await sleep(300);
+      emit({ event: 'uploading_cv' });
+      const uploadSuccess = await withRetry(() => uploadCV(page, args.cvPath), 2, 2000);
+      emit({ event: 'upload_done', data: { success: uploadSuccess } });
+      await sleep(500 + Math.random() * 500);
+    }
+
+    // ── HUMAN REVIEW ──────────────────────────────────────────────────────
     emit({ event: 'ready_for_review' });
 
     heartbeatInterval = setInterval(() => {
@@ -109,7 +187,10 @@ async function main() {
     await Promise.race([
       page
         .waitForNavigation({ timeout: 600_000, waitUntil: 'domcontentloaded' })
-        .then(() => emit({ event: 'submitted' })),
+        .then(() => {
+          emit({ event: 'submitting' });
+          emit({ event: 'submitted' });
+        }),
       page
         .waitForEvent('close', { timeout: 600_000 })
         .then(() => emit({ event: 'cancelled' })),

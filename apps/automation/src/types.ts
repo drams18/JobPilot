@@ -7,20 +7,11 @@ export interface AutomateArgs {
   message: string;
   sessionPath: string;
   headless: boolean;
+  resumeFrom?: string;
 }
 
 export interface AutomationEvent {
-  event:
-    | 'navigating'
-    | 'page_loaded'
-    | 'field_filled'
-    | 'upload_done'
-    | 'ready_for_review'
-    | 'submitted'
-    | 'cancelled'
-    | 'heartbeat'
-    | 'error'
-    | 'process_exit';
+  event: string;
   data?: Record<string, unknown>;
 }
 
