@@ -23,37 +23,6 @@ enum PreferredTone {
   CONCISE
 }
 
-enum ApplicationStatus {
-  DRAFT
-  AUTOMATING
-  APPLIED
-  IN_REVIEW
-  INTERVIEW_SCHEDULED
-  OFFER_RECEIVED
-  REJECTED
-  WITHDRAWN
-}
-
-enum DocumentType {
-  COVER_LETTER
-  FORM_FILL_JSON
-}
-
-enum EventType {
-  STATUS_CHANGED
-  DOCUMENT_GENERATED
-  NOTE_ADDED
-  INTERVIEW_SCHEDULED
-  OFFER_RECEIVED
-  REJECTED
-}
-
-enum SuggestionPriority {
-  HIGH
-  MEDIUM
-  LOW
-}
-
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -65,10 +34,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  resumes      Resume[]
-  preferences  UserPreferences?
-  matchScores  JobMatchScore[]
-  applications Application[]
+  resumes     Resume[]
+  preferences UserPreferences?
 
   @@map("users")
 }
@@ -83,13 +50,24 @@ model Resume {
   isDefault  Boolean  @default(false) @map("is_default")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  matchScores  JobMatchScore[]
-  applications Application[]
-  documents    GeneratedDocument[]
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions ResumeVersion[]
 
   @@index([userId])
   @@map("resumes")
+}
+
+model ResumeVersion {
+  id            String   @id @default(cuid())
+  resumeId      String   @map("resume_id")
+  resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobUrl        String?  @map("job_url")
+  jobText       String?  @map("job_text") @db.LongText
+  optimizedJson Json     @map("optimized_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([resumeId])
+  @@map("resume_versions")
 }
 
 model UserPreferences {
@@ -107,116 +85,4 @@ model UserPreferences {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
-}
-
-model JobOffer {
-  id            String   @id @default(cuid())
-  externalKey   String?  @unique @map("external_key")
-  title         String
-  company       String
-  location      String?
-  description   String   @db.LongText
-  requirements  String?  @db.LongText
-  salaryRange   String?  @map("salary_range")
-  contractType  String?  @map("contract_type")
-  experience    String?
-  qualification String?
-  jobUrl        String   @map("job_url")
-  source        String
-  scrapedAt     DateTime @default(now()) @map("scraped_at")
-  isActive      Boolean  @default(true) @map("is_active")
-
-  matchScores  JobMatchScore[]
-  applications Application[]
-
-  @@index([isActive])
-  @@index([source])
-  @@index([jobUrl])
-  @@fulltext([title, company, description])
-  @@map("job_offers")
-}
-
-model JobMatchScore {
-  id               String   @id @default(cuid())
-  userId           String   @map("user_id")
-  jobOfferId       String   @map("job_offer_id")
-  resumeId         String   @map("resume_id")
-  score            Float
-  matchDetailsJson Json     @map("match_details_json")
-  suggestions      Json?    @map("suggestions")
-  computedAt       DateTime @default(now()) @map("computed_at")
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobOffer JobOffer @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
-  resume   Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, jobOfferId, resumeId])
-  @@index([userId, score])
-  @@map("job_match_scores")
-}
-
-model Application {
-  id                 String            @id @default(cuid())
-  userId             String            @map("user_id")
-  jobOfferId         String            @map("job_offer_id")
-  resumeId           String            @map("resume_id")
-  status             ApplicationStatus @default(DRAFT)
-  appliedAt          DateTime?         @map("applied_at")
-  notes              String?           @db.Text
-  lastSuccessfulStep String?           @map("last_successful_step")
-  retryCount         Int               @default(0) @map("retry_count")
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobOffer JobOffer @relation(fields: [jobOfferId], references: [id])
-  resume   Resume   @relation(fields: [resumeId], references: [id])
-
-  documents       GeneratedDocument[]
-  events          ApplicationEvent[]
-  automationLogs  AutomationLog[]
-
-  @@index([userId, status])
-  @@index([jobOfferId])
-  @@map("applications")
-}
-
-model GeneratedDocument {
-  id            String       @id @default(cuid())
-  applicationId String       @map("application_id")
-  resumeId      String?      @map("resume_id")
-  type          DocumentType
-  content       String       @db.LongText
-  fileUrl       String?      @map("file_url")
-  createdAt     DateTime     @default(now()) @map("created_at")
-
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  resume      Resume?     @relation(fields: [resumeId], references: [id])
-
-  @@index([applicationId])
-  @@map("generated_documents")
-}
-
-model ApplicationEvent {
-  id            String    @id @default(cuid())
-  applicationId String    @map("application_id")
-  eventType     EventType @map("event_type")
-  detailsJson   Json?     @map("details_json")
-  createdAt     DateTime  @default(now()) @map("created_at")
-
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-
-  @@index([applicationId, createdAt])
-  @@map("application_events")
-}
-
-model AutomationLog {
-  id            String   @id @default(cuid())
-  applicationId String   @map("application_id")
-  event         String
-  payload       Json?
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-
-  @@index([applicationId, createdAt])
-  @@map("automation_logs")
 }

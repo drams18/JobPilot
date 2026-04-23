@@ -6,8 +6,6 @@ import { useAuthStore } from '@/store/useAuthStore';
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Tableau de bord',
-  '/dashboard/jobs': "Offres d'emploi",
-  '/dashboard/applications': 'Mes candidatures',
   '/dashboard/resumes': 'Mes CV',
   '/dashboard/settings': 'Préférences',
 };
@@ -15,7 +13,9 @@ const PAGE_TITLES: Record<string, string> = {
 export function TopBar() {
   const user = useAuthStore((s) => s.user);
   const pathname = usePathname();
-  const title = PAGE_TITLES[pathname] ?? 'Dashboard';
+  const title = pathname.startsWith('/dashboard/resumes/')
+    ? 'Optimisation CV'
+    : (PAGE_TITLES[pathname] ?? 'Dashboard');
 
   return (
     <header className="h-14 bg-white border-b border-gray-100 px-6 flex items-center justify-between shrink-0">

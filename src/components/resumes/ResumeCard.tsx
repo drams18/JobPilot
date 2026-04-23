@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, Star, Trash2 } from 'lucide-react';
+import { FileText, Star, Trash2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api-client';
 import type { Resume } from '@/hooks/useResumes';
@@ -61,7 +62,15 @@ export function ResumeCard({ resume }: { resume: Resume }) {
         </div>
       )}
 
-      <div className="flex gap-2 mt-1">
+      <div className="flex items-center gap-2 mt-1">
+        <Link
+          href={`/dashboard/resumes/${resume.id}`}
+          className="flex items-center gap-1.5 text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+        >
+          <Sparkles size={12} />
+          Optimiser
+        </Link>
+
         {!resume.isDefault && (
           <button
             onClick={() => defaultMutation.mutate()}
@@ -69,9 +78,10 @@ export function ResumeCard({ resume }: { resume: Resume }) {
             className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
           >
             <Star size={13} />
-            Définir comme principal
+            Principal
           </button>
         )}
+
         <button
           onClick={() => deleteMutation.mutate()}
           disabled={deleteMutation.isPending}

@@ -3,8 +3,8 @@ import Providers from '@/components/Providers';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Apply Copilot',
-  description: 'Votre copilote de candidature intelligente',
+  title: 'CV Optimizer',
+  description: 'Optimisez votre CV pour chaque offre d\'emploi',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

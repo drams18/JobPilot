@@ -28,7 +28,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-md">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Connexion</h1>
-        <p className="text-sm text-gray-500 mb-6">Apply Copilot — votre assistant de candidature</p>
+        <p className="text-sm text-gray-500 mb-6">CV Optimizer — adaptez votre CV à chaque offre</p>
 
         <form
           onSubmit={(e) => {

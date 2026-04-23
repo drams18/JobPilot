@@ -2,14 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Briefcase, ClipboardList, Files, Settings, LogOut, Zap } from 'lucide-react';
+import { LayoutDashboard, Files, Settings, LogOut, Zap } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/jobs', label: 'Offres', icon: Briefcase },
-  { href: '/dashboard/applications', label: 'Candidatures', icon: ClipboardList },
   { href: '/dashboard/resumes', label: 'Mes CV', icon: Files },
   { href: '/dashboard/settings', label: 'Paramètres', icon: Settings },
 ];
@@ -24,7 +22,7 @@ export function Sidebar() {
         <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
           <Zap size={14} className="text-white fill-white" />
         </div>
-        <span className="font-bold text-gray-900 tracking-tight text-sm">Apply Copilot</span>
+        <span className="font-bold text-gray-900 tracking-tight text-sm">CV Optimizer</span>
       </div>
 
       <nav className="flex-1 px-3 py-2 flex flex-col gap-0.5">
