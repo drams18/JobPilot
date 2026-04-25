@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
       fileUrl: true,
       isDefault: true,
       parsedJson: true,
+      thumbnail: true,
       createdAt: true,
     },
   });

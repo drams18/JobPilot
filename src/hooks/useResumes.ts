@@ -2,11 +2,17 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 
 export interface ParsedResumeJson {
+  name?: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  linkedin?: string;
   summary?: string;
   skills?: string[];
   experiences?: Array<{
-    role: string;
     company: string;
+    role: string;
     startDate: string;
     endDate: string;
     bullets: string[];
@@ -24,6 +30,7 @@ export interface Resume {
   fileUrl: string;
   isDefault: boolean;
   parsedJson: ParsedResumeJson | null;
+  thumbnail: string | null;
   createdAt: string;
 }
 

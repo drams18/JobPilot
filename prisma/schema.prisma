@@ -47,6 +47,7 @@ model Resume {
   fileUrl    String   @map("file_url")
   rawText    String?  @map("raw_text") @db.LongText
   parsedJson Json?    @map("parsed_json")
+  thumbnail  String?  @map("thumbnail") @db.LongText
   isDefault  Boolean  @default(false) @map("is_default")
   createdAt  DateTime @default(now()) @map("created_at")
 

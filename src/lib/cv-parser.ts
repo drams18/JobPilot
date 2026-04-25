@@ -1,145 +1,192 @@
 export interface ParsedResumeJson {
-  summary: string;
-  skills: string[];
-  experiences: Array<{
-    role: string;
+  name?: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  linkedin?: string;
+  summary?: string;
+  skills?: string[];
+  experiences?: Array<{
     company: string;
+    role: string;
     startDate: string;
     endDate: string;
     bullets: string[];
   }>;
-  education: Array<{
+  education?: Array<{
     institution: string;
     degree: string;
     year: string;
   }>;
 }
 
-export const SKILL_KEYWORDS = [
-  'JavaScript', 'TypeScript', 'React', 'Vue', 'Angular', 'Svelte',
-  'Node.js', 'Express', 'NestJS', 'Next.js', 'Nuxt',
-  'Python', 'Django', 'FastAPI', 'Flask',
-  'Java', 'Spring', 'Kotlin',
-  'PHP', 'Laravel', 'Symfony',
-  'Ruby', 'Rails',
-  'C#', '.NET', 'C++', 'Go', 'Rust', 'Swift',
-  'SQL', 'PostgreSQL', 'MySQL', 'SQLite', 'MongoDB', 'Redis', 'Elasticsearch',
-  'GraphQL', 'REST', 'gRPC',
-  'Docker', 'Kubernetes', 'Terraform', 'Ansible',
-  'AWS', 'GCP', 'Azure', 'Vercel', 'Heroku',
-  'Git', 'GitHub', 'GitLab', 'CI/CD', 'Jenkins', 'GitHub Actions',
-  'Linux', 'Bash', 'Shell',
-  'Tailwind', 'CSS', 'SASS', 'HTML',
-  'Figma', 'Sketch', 'Adobe XD',
-  'Agile', 'Scrum', 'Kanban', 'Jira',
-  'Machine Learning', 'TensorFlow', 'PyTorch', 'Pandas', 'NumPy',
-  'React Native', 'Flutter', 'iOS', 'Android',
-  'Prisma', 'Sequelize', 'TypeORM',
-  'Jest', 'Cypress', 'Playwright', 'Vitest',
-  'Webpack', 'Vite', 'Rollup',
-  'Microservices', 'Serverless', 'WebSockets',
+const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+const PHONE_RE = /(?:\+?\d[\d\s.\-()]{7,14}\d)/;
+const LINKEDIN_RE = /linkedin\.com\/in\/[a-zA-Z0-9\-_%]+/i;
+
+const KNOWN_SKILLS = [
+  'JavaScript', 'TypeScript', 'React', 'Vue', 'Angular', 'Node.js', 'Express', 'NestJS',
+  'Next.js', 'Python', 'Django', 'FastAPI', 'Java', 'Spring', 'PHP', 'Laravel', 'Symfony',
+  'Go', 'Rust', 'SQL', 'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'GraphQL', 'REST',
+  'Docker', 'Kubernetes', 'AWS', 'GCP', 'Azure', 'Git', 'CI/CD', 'Linux', 'Tailwind',
+  'React Native', 'Flutter', 'HTML', 'CSS', 'Sass', 'Webpack', 'Vite', 'Jest', 'Cypress',
+  'Prisma', 'Sequelize', 'TypeORM', 'Firebase', 'Supabase', 'Vercel', 'Netlify',
 ];
 
-const DATE_PATTERN = /\b(jan(?:vier)?|fév(?:rier)?|mar(?:s)?|avr(?:il)?|mai|juin|juil(?:let)?|ao(?:û|u)t|sep(?:tembre)?|oct(?:obre)?|nov(?:embre)?|déc(?:embre)?|january|february|march|april|may|june|july|august|september|october|november|december|20\d{2}|19\d{2})\b/i;
+const SECTION_PATTERNS = {
+  skills: /compétences|skills|technologies|outils|tools|expertise/i,
+  experience: /expérience|experience|emploi|work history|parcours professionnel/i,
+  education: /formation|education|études|diplôme|cursus|scolarité/i,
+  summary: /profil|résumé|summary|à propos|about|objectif|introduction/i,
+};
 
-const EDUCATION_PATTERN = /\b(universit[eé]|licence|master|bac(?:helor)?|[eé]cole|diplôme|degree|mba|bts|dut|iut|formation|grande [eé]cole|ing[eé]nieur|doctorat|phd)\b/i;
-
-const BULLET_PATTERN = /^[\s]*[-•*▪▸→]\s+/;
-
-function splitLines(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.trimEnd())
-    .filter((l) => l.trim().length > 0);
-}
-
-function extractSkills(text: string): string[] {
-  return SKILL_KEYWORDS.filter((skill) =>
-    new RegExp(`(?:^|[^a-zA-Z])${escapeRegex(skill)}(?:[^a-zA-Z]|$)`, 'i').test(text)
+function detectSkills(text: string): string[] {
+  return KNOWN_SKILLS.filter((skill) =>
+    new RegExp(`(?:^|[^a-zA-Z])${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[^a-zA-Z]|$)`, 'i').test(text)
   );
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+function extractSection(
+  lines: string[],
+  sectionKey: keyof typeof SECTION_PATTERNS,
+  stopPatterns: RegExp[],
+): string[] {
+  const sectionPat = SECTION_PATTERNS[sectionKey];
+  let inSection = false;
+  const result: string[] = [];
 
-function extractSummary(lines: string[]): string {
-  const sentences: string[] = [];
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length < 20) continue;
-    if (DATE_PATTERN.test(trimmed)) continue;
-    if (/^[\d]/.test(trimmed)) continue;
-    sentences.push(trimmed);
-    if (sentences.length >= 3) break;
+    if (!inSection && sectionPat.test(line) && line.length < 60) {
+      inSection = true;
+      continue;
+    }
+    if (inSection) {
+      if (stopPatterns.some((p) => p.test(line) && line.length < 60)) break;
+      if (line.trim()) result.push(line.trim());
+    }
   }
-  return sentences.join(' ');
+  return result;
 }
 
-function extractExperiences(lines: string[]): ParsedResumeJson['experiences'] {
-  const experiences: ParsedResumeJson['experiences'] = [];
+function parseExperiences(lines: string[]): ParsedResumeJson['experiences'] {
+  const DATE_RE = /(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|jan|fév|mar|avr|mai|jun|juil|aoû|sep|oct|nov|déc)\.?\s*\d{4}|\d{4}/i;
+  const RANGE_RE = /(\w+\.?\s*\d{4})\s*[-–—]\s*(\w+\.?\s*\d{4}|présent|present|aujourd'hui|current)/i;
+  const BULLET_RE = /^[•\-\*•]\s+|^\d+\.\s+/;
 
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i].trim();
+  const sectionPat = SECTION_PATTERNS.experience;
+  const stopPats = [SECTION_PATTERNS.education, SECTION_PATTERNS.skills];
 
-    if (DATE_PATTERN.test(line)) {
-      const dateMatch = line.match(/(\d{4}|\w+\s+\d{4})\s*[-–—à]\s*(\d{4}|présent|present|aujourd'hui|current|now|\w+\s+\d{4})/i);
-      const startDate = dateMatch?.[1] ?? '';
-      const endDate = dateMatch?.[2] ?? '';
+  let inSection = false;
+  const expLines: string[] = [];
 
-      const role = lines[i + 1]?.trim() ?? '';
-      const company = lines[i + 2]?.trim() ?? '';
+  for (const line of lines) {
+    if (sectionPat.test(line) && line.length < 60) { inSection = true; continue; }
+    if (inSection) {
+      if (stopPats.some((p) => p.test(line) && line.length < 60)) break;
+      expLines.push(line);
+    }
+  }
 
-      const bullets: string[] = [];
-      let j = i + 3;
-      while (j < lines.length && !DATE_PATTERN.test(lines[j].trim())) {
-        const bl = lines[j].trim();
-        if (BULLET_PATTERN.test(lines[j]) || (bl.length > 20 && !EDUCATION_PATTERN.test(bl))) {
-          bullets.push(bl.replace(BULLET_PATTERN, '').trim());
-        }
-        j++;
-        if (bullets.length >= 6 || j - (i + 3) > 10) break;
-      }
+  const experiences: NonNullable<ParsedResumeJson['experiences']> = [];
+  let current: typeof experiences[0] | null = null;
 
-      if (role.length > 2) {
-        experiences.push({ role, company, startDate, endDate, bullets });
-        i = j;
-        continue;
+  for (const line of expLines) {
+    const rangeMatch = line.match(RANGE_RE);
+    if (rangeMatch || (DATE_RE.test(line) && line.length < 100 && !BULLET_RE.test(line))) {
+      if (current) experiences.push(current);
+      const datelessParts = line
+        .replace(RANGE_RE, '')
+        .replace(DATE_RE, '')
+        .split(/\s{2,}|\|/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      current = {
+        company: datelessParts[0] ?? '',
+        role: datelessParts[1] ?? '',
+        startDate: rangeMatch?.[1] ?? '',
+        endDate: rangeMatch?.[2] ?? '',
+        bullets: [],
+      };
+    } else if (current) {
+      if (BULLET_RE.test(line)) {
+        current.bullets.push(line.replace(BULLET_RE, '').trim());
+      } else if (!current.role && line.length < 80) {
+        current.role = line.trim();
       }
     }
-    i++;
   }
-
+  if (current) experiences.push(current);
   return experiences;
 }
 
-function extractEducation(lines: string[]): ParsedResumeJson['education'] {
-  const education: ParsedResumeJson['education'] = [];
+function parseEducation(lines: string[]): ParsedResumeJson['education'] {
+  const eduLines = extractSection(lines, 'education', [
+    SECTION_PATTERNS.experience,
+    SECTION_PATTERNS.skills,
+  ]);
+  const YEAR_RE = /\b(19|20)\d{2}\b/;
+  const education: NonNullable<ParsedResumeJson['education']> = [];
+  let current: typeof education[0] | null = null;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (EDUCATION_PATTERN.test(line)) {
-      const yearMatch = line.match(/\b(19|20)\d{2}\b/);
-      const year = yearMatch?.[0] ?? (lines[i + 1]?.match(/\b(19|20)\d{2}\b/)?.[0] ?? '');
-
-      const institution = line;
-      const degree = lines[i + 1]?.trim() ?? '';
-
-      education.push({ institution, degree, year });
-      i += 1;
+  for (const line of eduLines) {
+    if (YEAR_RE.test(line)) {
+      if (current) education.push(current);
+      current = {
+        institution: '',
+        degree: line.replace(YEAR_RE, '').trim(),
+        year: line.match(YEAR_RE)?.[0] ?? '',
+      };
+    } else if (current) {
+      if (!current.institution) current.institution = line;
+      else if (!current.degree) current.degree = line;
+    } else {
+      current = { institution: line, degree: '', year: '' };
     }
   }
-
+  if (current) education.push(current);
   return education;
 }
 
-export function parseResume(rawText: string): ParsedResumeJson {
-  const lines = splitLines(rawText);
-  const skills = extractSkills(rawText);
-  const summary = extractSummary(lines);
-  const experiences = extractExperiences(lines);
-  const education = extractEducation(lines);
+export function parseResumeLocal(rawText: string): ParsedResumeJson {
+  const text = rawText.replace(/\s+/g, ' ').trim();
+  const lines = rawText.split(/\r?\n/).map((l) => l.trimEnd()).filter((l) => l.trim().length > 0);
 
-  return { summary, skills, experiences, education };
+  const email = text.match(EMAIL_RE)?.[0];
+  const phone = text.match(PHONE_RE)?.[0]?.trim();
+  const linkedin = text.match(LINKEDIN_RE)?.[0];
+
+  const name = lines.slice(0, 6).find((l) => {
+    const t = l.trim();
+    return (
+      t.length >= 3 &&
+      t.length <= 60 &&
+      !/\d/.test(t) &&
+      !EMAIL_RE.test(t) &&
+      !PHONE_RE.test(t) &&
+      !LINKEDIN_RE.test(t)
+    );
+  });
+
+  const nameIdx = name ? lines.findIndex((l) => l.trim() === name.trim()) : -1;
+  const title =
+    nameIdx >= 0
+      ? lines.slice(nameIdx + 1, nameIdx + 4).find((l) => {
+          const t = l.trim();
+          return t.length >= 3 && t.length <= 80 && !EMAIL_RE.test(t) && !PHONE_RE.test(t);
+        })
+      : undefined;
+
+  const summaryLines = extractSection(lines, 'summary', [
+    SECTION_PATTERNS.experience,
+    SECTION_PATTERNS.education,
+    SECTION_PATTERNS.skills,
+  ]);
+  const summary = summaryLines.join(' ').slice(0, 500);
+
+  const skills = detectSkills(text);
+  const experiences = parseExperiences(lines);
+  const education = parseEducation(lines);
+
+  return { name, title, email, phone, linkedin, summary, skills, experiences, education };
 }

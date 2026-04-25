@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
-import { optimizeResume } from '@/lib/cv-optimizer';
+import { optimizeResumeLocal } from '@/lib/cv-optimizer';
+import { computeATSScore } from '@/lib/ats-score';
 import type { ParsedResumeJson } from '@/lib/cv-parser';
 
 export async function POST(request: NextRequest) {
@@ -30,7 +31,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const optimizedJson = optimizeResume(resume.parsedJson as unknown as ParsedResumeJson, jobText);
+  const parsed = resume.parsedJson as unknown as ParsedResumeJson;
+  const optimizedJson = optimizeResumeLocal(parsed, jobText);
+  const { score, missingKeywords } = computeATSScore(optimizedJson, jobText);
 
   const version = await prisma.resumeVersion.create({
     data: {
@@ -40,5 +43,5 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ optimizedJson, versionId: version.id });
+  return NextResponse.json({ optimizedJson, versionId: version.id, score, missingKeywords });
 }

@@ -4,6 +4,31 @@ import { getAuthUser } from '@/lib/auth';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
 
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const user = getAuthUser(request);
+  if (!user) return NextResponse.json({ message: 'Non autorisé' }, { status: 401 });
+
+  const { id } = await params;
+  const existing = await prisma.resume.findFirst({ where: { id, userId: user.userId } });
+  if (!existing) return NextResponse.json({ message: 'Introuvable' }, { status: 404 });
+
+  const body = await request.json();
+  const { parsedJson, thumbnail } = body as { parsedJson?: unknown; thumbnail?: string };
+
+  const updated = await prisma.resume.update({
+    where: { id },
+    data: {
+      ...(parsedJson !== undefined && { parsedJson: parsedJson as import('@prisma/client').Prisma.InputJsonValue }),
+      ...(thumbnail !== undefined && { thumbnail }),
+    },
+  });
+
+  return NextResponse.json(updated);
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

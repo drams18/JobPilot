@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
-import { extractJobKeywords } from '@/lib/cv-optimizer';
+const TECH_KEYWORDS = [
+  'JavaScript', 'TypeScript', 'React', 'Vue', 'Angular', 'Node.js', 'Express', 'NestJS',
+  'Next.js', 'Python', 'Django', 'FastAPI', 'Java', 'Spring', 'PHP', 'Laravel', 'Go', 'Rust',
+  'SQL', 'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'GraphQL', 'REST', 'Docker', 'Kubernetes',
+  'AWS', 'GCP', 'Azure', 'Git', 'CI/CD', 'Linux', 'Tailwind', 'React Native', 'Flutter',
+];
+
+function extractJobKeywords(text: string): string[] {
+  return TECH_KEYWORDS.filter((k) =>
+    new RegExp(`(?:^|[^a-zA-Z])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[^a-zA-Z]|$)`, 'i').test(text)
+  );
+}
 
 function stripHtml(html: string): string {
   return html
